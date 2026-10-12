@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QazShop — Интернет дүкен</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172033}
+header{background:#172554;color:white;text-align:center;padding:24px 12px}
+header h1{margin:0 0 8px;font-size:32px}
+nav{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:14px;background:white}
+button,input,select{font:inherit;padding:10px;border-radius:8px}
+button{border:0;background:#2563eb;color:white;cursor:pointer}
+button:hover{opacity:.85}
+input,select{border:1px solid #cbd5e1;max-width:100%}
+main{max-width:1150px;margin:auto;padding:16px}
+.panel{background:white;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 3px 12px #0000000a}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:14px;margin-top:16px}
+.product{border:1px solid #e2e8f0;border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.product h3{margin:10px 0}
+.product .price{margin-top:auto;padding:12px 0}
+.emoji{font-size:42px}
+.price{font-size:20px;font-weight:bold;color:#2563eb}
+.muted{color:#64748b;font-size:14px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.controls input{flex:1;min-width:160px}
+.cart-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0;border-bottom:1px solid #e2e8f0}
+.qty{display:flex;align-items:center;gap:7px}
+.qty button{padding:7px 12px}
+.total{font-size:23px;font-weight:bold;margin:18px 0}
+.full{width:100%;margin-top:8px}
+.secondary{background:#475569}
+.danger{background:#dc2626}
+#message{padding:0;margin:0 0 12px}
+.success{color:#15803d}
+.error{color:#dc2626}
+footer{text-align:center;padding:22px;color:#64748b}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛍️ QazShop</h1>
+  <div>Электрондық коммерция платформасы</div>
+  <p>Каталог · Себет · Тапсырыс</p>
+</header>
+
+<nav>
+  <button onclick="showSection('catalog')">📦 Каталог</button>
+  <button onclick="showSection('cart')">🛒 Себет (<span id="cartCount">0</span>)</button>
+  <button onclick="showSection('orders')">📋 Тапсырыстар</button>
+</nav>
+
+<main>
+  <p id="message" role="status"></p>
+
+  <section id="catalog" class="panel">
+    <h2>📦 Тауарлар каталогы</h2>
+    <div class="controls">
+      <input id="search" placeholder="Тауар іздеу..." oninput="renderProducts()">
+      <select id="category" onchange="renderProducts()">
+        <option value="all">Барлық санат</option>
+        <option value="electronics">Электроника</option>
+        <option value="clothes">Киім</option>
+        <option value="shoes">Аяқ киім</option>
+        <option value="accessories">Аксессуарлар</option>
+        <option value="sports">Спорт тауарлары</option>
+        <option value="home">Үйге арналған заттар</option>
+        <option value="books">Кітаптар және оқу құралдары</option>
+      </select>
+    </div>
+    <div id="products" class="products"></div>
+  </section>
+
+  <section id="cart" class="panel" hidden>
+    <h2>🛒 Менің себетім</h2>
+    <div id="cartItems"></div>
+    <div class="total">Жалпы: <span id="total">0 ₸</span></div>
+    <button class="danger" onclick="clearCart()">Себетті тазалау</button>
+    <hr style="margin:22px 0;border:0;border-top:1px solid #e2e8f0">
+    <h3>Тапсырысты рәсімдеу</h3>
+
+    <label for="customer">Атыңыз:</label>
+    <input id="customer" class="full" placeholder="Атыңызды енгізіңіз">
+
+    <label for="payment">Төлем әдісі:</label>
+    <select id="payment" class="full">
+      <option value="card">Банк картасы (демо)</option>
+      <option value="online">Онлайн төлем (демо)</option>
+      <option value="cash">Қолма-қол төлем</option>
+    </select>
+
+    <label for="delivery">Жеткізу әдісі:</label>
+    <select id="delivery" class="full">
+      <option value="Курьер арқылы">Курьер арқылы</option>
+      <option value="Дүкеннен алып кету">Дүкеннен алып кету</option>
+    </select>
+
+    <button class="full" onclick="checkout()">✅ Тапсырыс беру</button>
+    <p class="muted">Бұл оқу жобасы. Нақты төлем жүргізілмейді.</p>
+  </section>
+
+  <section id="orders" class="panel" hidden>
+    <h2>📋 Тапсырыстар тарихы</h2>
+    <div id="orderItems"></div>
+  </section>
+</main>
+
+<footer>QazShop © 2026 | Электрондық коммерция оқу жобасы</footer>
+
+<script>
+// ===================================
+// 1. FACTORY METHOD — тауар жасау
+// ===================================
+class ProductFactory {
+  static create(id,name,price,category,emoji,description){
+    return {id,name,price,category,emoji,description};
+  }
+}
+
+const products = [
+  // Электроника
+  ProductFactory.create(1,"Құлаққап",8500,"electronics","🎧","Сапалы дыбыс"),
+  ProductFactory.create(2,"Смарт сағат",18000,"electronics","⌚","Күнделікті қолдануға"),
+  ProductFactory.create(3,"Смартфон",145000,"electronics","📱","Заманауи смартфон"),
+  ProductFactory.create(4,"Ноутбук",320000,"electronics","💻","Оқу мен жұмысқа"),
+  ProductFactory.create(5,"Планшет",95000,"electronics","📲","Ыңғайлы планшет"),
+  ProductFactory.create(6,"Пернетақта",12000,"electronics","⌨️","Компьютерге арналған"),
+  ProductFactory.create(7,"Тінтуір",6500,"electronics","🖱️","Сымсыз тінтуір"),
+  ProductFactory.create(8,"Динамик",15000,"electronics","🔊","Музыка тыңдауға"),
+  ProductFactory.create(9,"Монитор",78000,"electronics","🖥️","Кең экран"),
+  ProductFactory.create(10,"Фотоаппарат",125000,"electronics","📷","Фото түсіруге"),
+  ProductFactory.create(11,"Ойын контроллері",14000,"electronics","🎮","Ойынға арналған"),
+  ProductFactory.create(12,"Power Bank",9500,"electronics","🔋","Қосымша қуат"),
+
+  // Киім
+  ProductFactory.create(13,"Футболка",6500,"clothes","👕","Күнделікті киім"),
+  ProductFactory.create(14,"Күртеше",28000,"clothes","🧥","Салқын ауа райына"),
+  ProductFactory.create(15,"Джинсы",16000,"clothes","👖","Классикалық джинсы"),
+  ProductFactory.create(16,"Көйлек",18000,"clothes","👗","Әдемі көйлек"),
+  ProductFactory.create(17,"Кепка",4500,"clothes","🧢","Бас киім"),
+  ProductFactory.create(18,"Худи",14000,"clothes","🥼","Жылы әрі ыңғайлы"),
+  ProductFactory.create(19,"Шұлық",1200,"clothes","🧦","Күнделікті қолдануға"),
+  ProductFactory.create(20,"Қолғап",3500,"clothes","🧤","Жылы қолғап"),
+  ProductFactory.create(21,"Пижама",9000,"clothes","🛌","Үйге арналған киім"),
+  ProductFactory.create(22,"Спорттық костюм",24000,"clothes","🏃","Спортқа арналған"),
+
+  // Аяқ киім
+  ProductFactory.create(23,"Кроссовка",22000,"shoes","👟","Спорттық аяқ киім"),
+  ProductFactory.create(24,"Классикалық аяқ киім",26000,"shoes","👞","Классикалық үлгі"),
+  ProductFactory.create(25,"Сандал",8500,"shoes","🩴","Жазға арналған"),
+  ProductFactory.create(26,"Қысқы етік",32000,"shoes","🥾","Қысқы аяқ киім"),
+
+  // Аксессуарлар
+  ProductFactory.create(27,"Рюкзак",12000,"accessories","🎒","Күнделікті рюкзак"),
+  ProductFactory.create(28,"Күн көзілдірігі",5000,"accessories","🕶️","Стильді аксессуар"),
+  ProductFactory.create(29,"Қолсағат",22000,"accessories","⌚","Классикалық сағат"),
+  ProductFactory.create(30,"Әмиян",7000,"accessories","👛","Ыңғайлы әмиян"),
+  ProductFactory.create(31,"Белдік",4500,"accessories","🪢","Күнделікті аксессуар"),
+  ProductFactory.create(32,"Спорт сөмкесі",11000,"accessories","👜","Жаттығуға арналған"),
+  ProductFactory.create(33,"Қолшатыр",5500,"accessories","☂️","Жаңбырдан қорғайды"),
+  ProductFactory.create(34,"Су бөтелкесі",3000,"accessories","🧴","Суға арналған бөтелке"),
+
+  // Спорт
+  ProductFactory.create(35,"Футбол добы",7500,"sports","⚽","Футбол ойнауға"),
+  ProductFactory.create(36,"Баскетбол добы",8500,"sports","🏀","Баскетболға арналған"),
+  ProductFactory.create(37,"Гантель",12000,"sports","🏋️","Үй жаттығуларына"),
+  ProductFactory.create(38,"Йога төсеніш",6500,"sports","🧘","Жаттығуға арналған"),
+  ProductFactory.create(39,"Секіртпе",2500,"sports","➰","Кардио жаттығуына"),
+  ProductFactory.create(40,"Спорт қолғаптары",4500,"sports","🥊","Жаттығуға арналған"),
+
+  // Үй заттары
+  ProductFactory.create(41,"Үстел шамы",8500,"home","💡","Жұмыс үстеліне"),
+  ProductFactory.create(42,"Кесе",1800,"home","☕","Күнделікті қолдануға"),
+  ProductFactory.create(43,"Жастық",6500,"home","🛏️","Жұмсақ жастық"),
+  ProductFactory.create(44,"Қабырға сағаты",7500,"home","🕰️","Үйге арналған"),
+  ProductFactory.create(45,"Термос",5500,"home","🫖","Сусынды жылы сақтайды"),
+  ProductFactory.create(46,"Плед",9500,"home","🧶","Жұмсақ плед"),
+
+  // Кітаптар мен оқу құралдары
+  ProductFactory.create(47,"Дәптер",700,"books","📓","Жазуға арналған"),
+  ProductFactory.create(48,"Кітап",4500,"books","📚","Оқуға арналған кітап"),
+  ProductFactory.create(49,"Қалам жиынтығы",2200,"books","🖊️","Оқу құралдары"),
+  ProductFactory.create(50,"Калькулятор",5500,"books","🧮","Есептеуге арналған")
+];
+
+// ===================================
+// 2. ДЕРЕКТЕРДІ САҚТАУ
+// ===================================
+const memoryStore = {};
+const Storage = {
+  available:false,
+
+  init(){
+    try{
+      const key="__qazshop_test__";
+      localStorage.setItem(key,"1");
+      localStorage.removeItem(key);
+      this.available=true;
+    }catch(e){
+      this.available=false;
+    }
+  },
+
+  get(key,fallback){
+    if(this.available){
+      try{
+        const value=localStorage.getItem(key);
+        return value===null?fallback:JSON.parse(value);
+      }catch(e){
+        this.available=false;
+      }
+    }
+    return Object.prototype.hasOwnProperty.call(memoryStore,key)
+      ? memoryStore[key] : fallback;
+  },
+
+  set(key,value){
+    memoryStore[key]=value;
+    if(this.available){
+      try{
+        localStorage.setItem(key,JSON.stringify(value));
+      }catch(e){
+        this.available=false;
+      }
+    }
+  }
+};
+Storage.init();
+
+// ===================================
+// 3. SINGLETON — бір ғана себет
+// ===================================
+class CartManager {
+  constructor(){
+    if(CartManager.instance)return CartManager.instance;
+    this.items=[];
+    CartManager.instance=this;
+  }
+
+  add(product){
+    const item=this.items.find(i=>i.product.id===product.id);
+    if(item)item.quantity++;
+    else this.items.push({product,quantity:1});
+    saveCart();
+  }
+
+  change(id,amount){
+    const item=this.items.find(i=>i.product.id===id);
+    if(!item)return;
+    item.quantity+=amount;
+    if(item.quantity<=0){
+      this.items=this.items.filter(i=>i.product.id!==id);
+    }
+    saveCart();
+  }
+
+  remove(id){
+    this.items=this.items.filter(i=>i.product.id!==id);
+    saveCart();
+  }
+
+  clear(){
+    this.items=[];
+    saveCart();
+  }
+
+  getTotal(){
+    return this.items.reduce((sum,i)=>sum+i.product.price*i.quantity,0);
+  }
+
+  getCount(){
+    return this.items.reduce((sum,i)=>sum+i.quantity,0);
+  }
+}
+const cart=new CartManager();
+
+// ===================================
+// 4. STRATEGY — төлем әдістері
+// ===================================
+class CardPayment {
+  pay(total){return "Банк картасы (демо): "+money(total);}
+}
+class OnlinePayment {
+  pay(total){return "Онлайн төлем (демо): "+money(total);}
+}
+class CashPayment {
+  pay(total){return "Қолма-қол төлем: "+money(total);}
+}
+
+function getPaymentStrategy(method){
+  if(method==="card")return new CardPayment();
+  if(method==="online")return new OnlinePayment();
+  return new CashPayment();
+}
+
+// ===================================
+// 5. OBSERVER — тапсырыс оқиғалары
+// ===================================
+class OrderSubject {
+  constructor(){this.observers=[];}
+  subscribe(observer){this.observers.push(observer);}
+  notify(order){this.observers.forEach(o=>o.update(order));}
+}
+const orderEvents=new OrderSubject();
+
+orderEvents.subscribe({
+  update(order){
+    showMessage("Тапсырыс қабылданды! №"+order.id,"success");
+  }
+});
+
+orderEvents.subscribe({
+  update(order){
+    const orders=Storage.get("qazshop_orders",[]);
+    orders.unshift(order);
+    Storage.set("qazshop_orders",orders);
+    renderOrders();
+  }
+});
+
+// ===================================
+// 6. FACADE — тапсырыс рәсімдеу
+// ===================================
+class CheckoutFacade {
+  checkout(name,method,delivery){
+    if(cart.items.length===0){
+      showMessage("Алдымен себетке тауар қосыңыз.","error");
+      return;
+    }
+    if(!name.trim()){
+      showMessage("Атыңызды енгізіңіз.","error");
+      document.getElementById("customer").focus();
+      return;
+    }
+
+    const total=cart.getTotal();
+    const payment=getPaymentStrategy(method);
+
+    const order={
+      id:Date.now(),
+      date:new Date().toLocaleString("kk-KZ"),
+      customer:name.trim(),
+      items:cart.items.map(i=>({
+        name:i.product.name,
+        price:i.product.price,
+        quantity:i.quantity
+      })),
+      total:total,
+      payment:payment.pay(total),
+      delivery:delivery,
+      status:"Қабылданды"
+    };
+
+    orderEvents.notify(order);
+    cart.clear();
+    showSection("orders");
+  }
+}
+const checkoutFacade=new CheckoutFacade();
+
+// ===================================
+// СЕБЕТТІ САҚТАУ / ҚАЛПЫНА КЕЛТІРУ
+// ===================================
+function saveCart(){
+  Storage.set("qazshop_cart",cart.items.map(i=>({
+    id:i.product.id,
+    quantity:i.quantity
+  })));
+  renderCart();
+  updateCartCount();
+}
+
+function loadCart(){
+  const saved=Storage.get("qazshop_cart",[]);
+  cart.items=[];
+
+  if(!Array.isArray(saved))return;
+
+  saved.forEach(item=>{
+    const product=products.find(p=>p.id===Number(item.id));
+    const quantity=Number(item.quantity);
+
+    if(product&&Number.isInteger(quantity)&&quantity>0&&quantity<1000){
+      cart.items.push({product,quantity});
+    }
+  });
+}
+
+// ===================================
+// КӨМЕКШІ ФУНКЦИЯЛАР
+// ===================================
+function money(value){
+  return Number(value).toLocaleString("kk-KZ")+" ₸";
+}
+
+function showMessage(text,type=""){
+  const el=document.getElementById("message");
+  el.textContent=text;
+  el.className=type;
+}
+
+function showSection(id){
+  ["catalog","cart","orders"].forEach(s=>{
+    document.getElementById(s).hidden=(s!==id);
+  });
+  showMessage("");
+  if(id==="cart")renderCart();
+  if(id==="orders")renderOrders();
+}
+
+function updateCartCount(){
+  document.getElementById("cartCount").textContent=cart.getCount();
+}
+
+// ===================================
+// КАТАЛОГ ЖӘНЕ ІЗДЕУ
+// ===================================
+function renderProducts(){
+  const search=document.getElementById("search").value.toLowerCase().trim();
+  const category=document.getElementById("category").value;
+
+  const filtered=products.filter(p=>
+    p.name.toLowerCase().includes(search)&&
+    (category==="all"||p.category===category)
+  );
+
+  const root=document.getElementById("products");
+
+  if(filtered.length===0){
+    root.innerHTML="<p>Тауар табылмады.</p>";
+    return;
+  }
+
+  root.innerHTML=filtered.map(p=>`
+    <article class="product">
+      <div class="emoji">${p.emoji}</div>
+      <h3>${p.name}</h3>
+      <p class="muted">${p.description}</p>
+      <div class="price">${money(p.price)}</div>
+      <button onclick="addToCart(${p.id})">🛒 Себетке қосу</button>
+    </article>
+  `).join("");
+}
+
+function addToCart(id){
+  const product=products.find(p=>p.id===id);
+  if(!product)return;
+  cart.add(product);
+  showMessage(product.name+" себетке қосылды!","success");
+}
+
+// ===================================
+// СЕБЕТТІ КӨРСЕТУ
+// ===================================
+function renderCart(){
+  const root=document.getElementById("cartItems");
+
+  if(cart.items.length===0){
+    root.innerHTML="<p>Себет әзірше бос.</p>";
+  }else{
+    root.innerHTML=cart.items.map(i=>`
+      <div class="cart-row">
+        <div>
+          <strong>${i.product.emoji} ${i.product.name}</strong>
+          <div class="muted">${money(i.product.price)} × ${i.quantity}</div>
+        </div>
+        <div class="qty">
+          <button onclick="changeQuantity(${i.product.id},-1)">−</button>
+          <strong>${i.quantity}</strong>
+          <button onclick="changeQuantity(${i.product.id},1)">+</button>
+          <button class="danger" onclick="removeItem(${i.product.id})">Жою</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("total").textContent=money(cart.getTotal());
+  updateCartCount();
+}
+
+function changeQuantity(id,amount){cart.change(id,amount);}
+
+function removeItem(id){
+  cart.remove(id);
+  showMessage("Тауар себеттен жойылды.","success");
+}
+
+function clearCart(){
+  cart.clear();
+  showMessage("Себет тазаланды.","success");
+}
+
+// ===================================
+// ТАПСЫРЫСТАР ТАРИХЫ
+// ===================================
+function checkout(){
+  checkoutFacade.checkout(
+    document.getElementById("customer").value,
+    document.getElementById("payment").value,
+    document.getElementById("delivery").value
+  );
+}
+
+function renderOrders(){
+  const root=document.getElementById("orderItems");
+  const orders=Storage.get("qazshop_orders",[]);
+
+  if(!orders.length){
+    root.innerHTML="<p>Әзірше тапсырыс жоқ.</p>";
+    return;
+  }
+
+  root.innerHTML=orders.slice(0,20).map(o=>`
+    <div class="cart-row">
+      <div>
+        <strong>Тапсырыс №${o.id}</strong>
+        <p class="muted">${o.date} · ${o.customer}</p>
+        <p>${o.items.map(i=>i.name+" × "+i.quantity).join(", ")}</p>
+        <p class="muted">${o.payment}</p>
+        <p class="muted">Жеткізу: ${o.delivery}</p>
+        <p class="muted">Мәртебесі: ${o.status}</p>
+      </div>
+      <div class="price">${money(o.total)}</div>
+    </div>
+  `).join("");
+}
+
+// ===================================
+// БАСТАПҚЫ ІСКЕ ҚОСУ
+// ===================================
+loadCart();
+renderProducts();
+renderCart();
+renderOrders();
+
+if(!Storage.available){
+  showMessage(
+    "Ескерту: бұл редактор тұрақты сақтауды бұғаттаған. " +
+    "Себет осы бет ашық тұрған кезде жұмыс істейді. " +
+    "Жаңартқаннан кейін сақтау үшін басқа іске қосу ортасын қолданыңыз.",
+    "error"
+  );
+}
+</script>
+</body>
+      </html>
